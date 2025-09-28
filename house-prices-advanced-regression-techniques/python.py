@@ -353,16 +353,19 @@ train_ag = TabularDataset(train_data)
 
 # Création et entraînement du prédicteur
 predictor = TabularPredictor(
-        label=label,
-        eval_metric="root_mean_squared_error",
-        verbosity=2
-    ).fit(
-        train_data=train_ag,
-        time_limit=2500,   # temps max en secondes
-        presets="best_quality",  # meilleure qualité
-        num_cpus=1,       # pas de Ray
-        num_gpus=0
-    )
+    label=label,
+    eval_metric="root_mean_squared_error",
+    verbosity=2
+).fit(
+    train_data=train_ag,
+    time_limit=2500,
+    presets="best_quality",
+    num_cpus=1,
+    num_gpus=0,
+    num_bag_folds=5,    # 5-fold bagging
+    num_bag_sets=1,     # répète le bagging une fois
+    num_stack_levels=1  # stacking niveau 1
+)
 
 # Leaderboard complet
 lb = predictor.leaderboard(silent=False)
