@@ -342,17 +342,13 @@ X_train = train
 y_train = y
 X_test = test
 
-test_data = X_test
-train_data = X_train
+test_data = X_test.copy()
+train_data = X_train.copy()
 train_data['SalePrice'] = y_train
 
 label = "SalePrice"
 
 train_ag = TabularDataset(train_data)
-
-test_data = X_test.copy()
-train_data = X_train.copy()
-train_data['SalePrice'] = y_train
 
 label = "SalePrice"
 
