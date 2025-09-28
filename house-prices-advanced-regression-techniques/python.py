@@ -354,33 +354,47 @@ train_ag = TabularDataset(train_data)
 
 train_split, val_split = train_test_split(train_data, test_size=0.2, random_state=42)
 
+
+hyperparams = {
+    "GBM": {},        # LightGBM
+    "CAT": {},        # CatBoost
+    "XGB": {},        # XGBoost
+    "RF": {},         # Random Forest
+    "XT": {},         # Extra Trees
+    "LR": {},         # Linear models
+    # pas de KNN, pas de NeuralNetFastAI
+}
+
 predictor = TabularPredictor(
     label=label,
     eval_metric="root_mean_squared_error",
     verbosity=2
 ).fit(
-    train_data=train_split,
-    tuning_data=val_split,  # jeu de validation externe
-    time_limit=2500,
-    presets="best_quality",
+    train_data=train_ag,       # tu peux mettre train_split si tu veux un holdout externe
+    time_limit=2000,
+    presets="best_quality",    # équilibre robustesse/qualité
     num_cpus=cpu_count(),
     num_gpus=0,
-    num_bag_folds=5,
+    num_bag_folds=5,           # bagging k-fold → moins d’overfit
     num_bag_sets=1,
-    num_stack_levels=1
+    num_stack_levels=1,        # stacking simple
+    hyperparameters=hyperparams
 )
 
-# Leaderboard complet
-lb = predictor.leaderboard(silent=False)
+# Récupération du leaderboard
+lb = predictor.leaderboard(silent=True)
+lb["model_type"] = lb["model"].apply(lambda x: x.split("_")[0])
 
-# On garde les 3 meilleurs modèles
-top3_models = lb.sort_values("score_val").head(3)["model"].tolist()
+# Garder le meilleur score pour chaque type de modèle
+best_per_type = lb.sort_values("score_val").groupby("model_type").first().reset_index()
+best_models = best_per_type["model"].tolist()
+print("Meilleurs modèles par type :", best_models)
 
 # Test dataset en format AG
 test_ag = TabularDataset(test_data)
 
-# Génération des prédictions pour chaque modèle du top 3
-for rank, model_name in enumerate(top3_models, start=1):
+# Génération des prédictions pour chaque meilleur modèle par type
+for rank, model_name in enumerate(best_models, start=1):
     preds = predictor.predict(test_ag, model=model_name)
     
     # Sauvegarde avec nom dynamique
