@@ -12,6 +12,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
+from multiprocessing import cpu_count
 
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import Ridge, Lasso
@@ -360,7 +361,7 @@ predictor = TabularPredictor(
     train_data=train_ag,
     time_limit=2500,
     presets="best_quality",
-    num_cpus=1,
+    num_cpus=cpu_count(),
     num_gpus=0,
     num_bag_folds=5,    # 5-fold bagging
     num_bag_sets=1,     # répète le bagging une fois
