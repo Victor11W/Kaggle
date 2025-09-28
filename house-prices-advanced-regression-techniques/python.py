@@ -30,13 +30,9 @@ train = pd.read_csv('train.csv')
 test = pd.read_csv('test.csv')
 test_ids = test['Id']
 
-y= train["SalePrice"]
-train = train.drop(columns=["SalePrice","Id"])
+y = train["SalePrice"]
+train = train.drop(columns=["SalePrice", "Id"])
 test = test.drop(columns=["Id"])
-y= train["SalePrice"]
-train = train.drop(columns=["SalePrice","Id"])
-test = test.drop(columns=["Id"])
-
 # MSZoning - replace NaN with mode (RL)
 train["MSZoning"] = train["MSZoning"].replace(np.nan, "RL")
 test["MSZoning"] = test["MSZoning"].replace(np.nan, "RL")
