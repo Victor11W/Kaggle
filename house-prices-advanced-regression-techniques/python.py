@@ -33,6 +33,9 @@ test_ids = test['Id']
 y= train["SalePrice"]
 train = train.drop(columns=["SalePrice","Id"])
 test = test.drop(columns=["Id"])
+y= train["SalePrice"]
+train = train.drop(columns=["SalePrice","Id"])
+test = test.drop(columns=["Id"])
 
 # MSZoning - replace NaN with mode (RL)
 train["MSZoning"] = train["MSZoning"].replace(np.nan, "RL")
@@ -220,11 +223,10 @@ test["GarageCond"] = test["GarageCond"].replace(np.nan, "None")
 train["GarageCond"] = train["GarageCond"].map(mapping)
 test["GarageCond"] = test["GarageCond"].map(mapping)
 
-# GarageArea - create binary indicator and log transform + replace NaN with 0
-train["GarageArea"] = train["GarageArea"].fillna(0)
-test["GarageArea"] = test["GarageArea"].fillna(0)
-train["GarageArea_log"] = np.log1p(train["GarageArea"])  # log transform for skew
-test["GarageArea_log"] = np.log1p(test["GarageArea"])
+# GarageCars - create binary indicator and log transform + replace NaN with 0
+train["GarageCars"] = train["GarageCars"].fillna(0)
+test["GarageCars"] = test["GarageCars"].fillna(0)
+
 
 # GarageType - replace NaN with None
 train["GarageType"] = train["GarageType"].replace(np.nan, "None")
@@ -252,6 +254,7 @@ test["ScreenPorchLog"] = np.log1p(test["ScreenPorch"])
 
 train["GotPool"] = train["PoolQC"].notnull().astype(int)
 test["GotPool"] = test["PoolQC"].notnull().astype(int)
+
 
 # Fence - replace NaN with None + mapping with quality and good wood
 # Fence - mapping with quality and good wood
@@ -285,12 +288,34 @@ train["MoSold_cos"] = np.cos(2 * np.pi * train["MoSold"] / 12)
 test["MoSold_sin"] = np.sin(2 * np.pi * test["MoSold"] / 12)
 test["MoSold_cos"] = np.cos(2 * np.pi * test["MoSold"] / 12)
 
+
+
+
+
+#Feature engineering 
+train["TotalArea"] = train["GrLivArea"] + train["TotalBsmtSF"] + train["GarageArea"]
+train["BathPerRoom"] = (train["FullBath"] + train["HalfBath"]) / (train["TotRmsAbvGrd"] + 1)
+
+test["TotalArea"] = test["GrLivArea"] + test["TotalBsmtSF"] + test["GarageArea"]
+test["BathPerRoom"] = (test["FullBath"] + test["HalfBath"]) / (test["TotRmsAbvGrd"] + 1)
+
+train["OverallQual_GrLiv"] = train["OverallQual"] * train["GrLivArea"]
+train["Qual_x_Bath"] = train["OverallQual"] * (train["FullBath"] + train["HalfBath"])
+
+test["OverallQual_GrLiv"] = test["OverallQual"] * test["GrLivArea"]
+test["Qual_x_Bath"] = test["OverallQual"] * (test["FullBath"] + test["HalfBath"])
+
+neighborhood_means = pd.concat([train, y], axis=1).groupby("Neighborhood")["SalePrice"].mean()
+train["Neighborhood_mean"] = train["Neighborhood"].map(neighborhood_means)
+test["Neighborhood_mean"] = test["Neighborhood"].map(neighborhood_means)
+
+
 # Sale type - replace NaN with mode (WD)
 train["SaleType"] = train["SaleType"].replace(np.nan, "WD")
 test["SaleType"] = test["SaleType"].replace(np.nan, "WD")
 
-train = train.drop(columns=["BsmtFinType2","ExterCond","PoolArea","OpenPorchSF","WoodDeckSF","LowQualFinSF","YearRemodAdd","YearBuilt","GarageYrBlt","PoolQC","Fence","Functional","GarageCars","EnclosedPorch","3SsnPorch","ScreenPorch","MiscFeature","MiscVal","RoofMatl","Condition2","Alley", "Street", "Utilities", "MiscFeature"])
-test = test.drop(columns=["BsmtFinType2","ExterCond","PoolArea","OpenPorchSF","WoodDeckSF","LowQualFinSF","YearRemodAdd","YearBuilt","GarageYrBlt","PoolQC","Fence","Functional","GarageCars","EnclosedPorch","3SsnPorch","ScreenPorch","MiscFeature","MiscVal","RoofMatl","Condition2","Alley", "Street", "Utilities", "MiscFeature"])
+train = train.drop(columns=["BsmtFinType2","ExterCond","PoolArea","OpenPorchSF","WoodDeckSF","LowQualFinSF","YearRemodAdd","YearBuilt","GarageYrBlt","PoolQC","Fence","Functional","GarageArea","EnclosedPorch","3SsnPorch","ScreenPorch","MiscFeature","MiscVal","RoofMatl","Condition2","Alley", "Street", "Utilities", "MiscFeature"])
+test = test.drop(columns=["BsmtFinType2","ExterCond","PoolArea","OpenPorchSF","WoodDeckSF","LowQualFinSF","YearRemodAdd","YearBuilt","GarageYrBlt","PoolQC","Fence","Functional","GarageArea","EnclosedPorch","3SsnPorch","ScreenPorch","MiscFeature","MiscVal","RoofMatl","Condition2","Alley", "Street", "Utilities", "MiscFeature"])
 
 print(test.columns)
 
@@ -325,8 +350,16 @@ label = "SalePrice"
 
 train_ag = TabularDataset(train_data)
 
+test_data = X_test.copy()
+train_data = X_train.copy()
+train_data['SalePrice'] = y_train
 
-# Création du prédicteur
+label = "SalePrice"
+
+# Création du dataset AG
+train_ag = TabularDataset(train_data)
+
+# Création et entraînement du prédicteur
 predictor = TabularPredictor(
         label=label,
         eval_metric="root_mean_squared_error",
@@ -334,24 +367,29 @@ predictor = TabularPredictor(
     ).fit(
         train_data=train_ag,
         time_limit=2500,   # temps max en secondes
-        presets="best_quality",  # meilleur modèle possible (un peu plus lent)
-        num_cpus=1,       # évite Ray multi-process
-        num_gpus=0        # désactive GPU si instable
+        presets="best_quality",  # meilleure qualité
+        num_cpus=1,       # pas de Ray
+        num_gpus=0
     )
 
-    # Leaderboard (tous les modèles testés et leurs scores)
-predictor.leaderboard(silent=False)
+# Leaderboard complet
+lb = predictor.leaderboard(silent=False)
 
-# Prédictions sur le test set
+# On garde les 3 meilleurs modèles
+top3_models = lb.sort_values("score_val").head(3)["model"].tolist()
+
+# Test dataset en format AG
 test_ag = TabularDataset(test_data)
 
-preds = predictor.predict(test_ag)
-
-# Sauvegarde en CSV au format Kaggle
-submission = pd.DataFrame({
-    "Id": test_ids,
-    "SalePrice": preds
-})
-submission.to_csv("submission_autogluon.csv", index=False)
-
-print("✅ Fichier submission_autogluon.csv généré !")
+# Génération des prédictions pour chaque modèle du top 3
+for rank, model_name in enumerate(top3_models, start=1):
+    preds = predictor.predict(test_ag, model=model_name)
+    
+    # Sauvegarde avec nom dynamique
+    filename = f"submission_{rank}_{model_name}.csv"
+    submission = pd.DataFrame({
+        "Id": test_ids,
+        "SalePrice": preds
+    })
+    submission.to_csv(filename, index=False)
+    print(f"Fichier {filename} généré !")
