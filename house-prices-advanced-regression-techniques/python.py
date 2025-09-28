@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from ydata_profiling import ProfileReport
 from autogluon.tabular import TabularDataset, TabularPredictor
-from sklearn.model_selection import cross_val_score, KFold
+from sklearn.model_selection import cross_val_score, KFold, train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import  cross_val_score
@@ -352,20 +352,22 @@ label = "SalePrice"
 # Création du dataset AG
 train_ag = TabularDataset(train_data)
 
-# Création et entraînement du prédicteur
+train_split, val_split = train_test_split(train_data, test_size=0.2, random_state=42)
+
 predictor = TabularPredictor(
     label=label,
     eval_metric="root_mean_squared_error",
     verbosity=2
 ).fit(
-    train_data=train_ag,
+    train_data=train_split,
+    tuning_data=val_split,  # jeu de validation externe
     time_limit=2500,
     presets="best_quality",
     num_cpus=cpu_count(),
     num_gpus=0,
-    num_bag_folds=5,    # 5-fold bagging
-    num_bag_sets=1,     # répète le bagging une fois
-    num_stack_levels=1  # stacking niveau 1
+    num_bag_folds=5,
+    num_bag_sets=1,
+    num_stack_levels=1
 )
 
 # Leaderboard complet
